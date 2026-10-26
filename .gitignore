@@ -1,0 +1,29 @@
+## Build output
+bin/
+obj/
+publish/
+artifacts/
+
+## Local toolchain used for cross-compiling from macOS
+.dotnet/
+.dotnet-home/
+dotnet-install.sh
+
+## Optional local reference clone of upstream ShareX
+upstream/
+wftest/
+
+## Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+*.DotSettings.user
+
+## OS noise
+.DS_Store
+Thumbs.db
+
+## Test / coverage
+TestResults/
+*.coverage
