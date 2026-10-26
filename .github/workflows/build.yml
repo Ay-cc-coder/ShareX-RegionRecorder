@@ -23,7 +23,7 @@ jobs:
             rid: win-arm64
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v5
@@ -31,15 +31,19 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Publish
-        run: >
-          dotnet publish src/RegionRecorder/RegionRecorder.csproj
-          -c Release
-          -r ${{ matrix.rid }}
-          --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:DebugType=none
-          -o publish/${{ matrix.rid }}
+        shell: pwsh
+        run: |
+          dotnet publish src/RegionRecorder/RegionRecorder.csproj `
+            -c Release `
+            -r ${{ matrix.rid }} `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=none `
+            -o publish/${{ matrix.rid }}
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          # GPLv3 分发要求随二进制附带许可与来源说明
+          Copy-Item LICENSE.txt, NOTICE.md -Destination publish/${{ matrix.rid }}
 
       - name: Package
         shell: pwsh
@@ -49,7 +53,7 @@ jobs:
           Get-Item $zip | Select-Object Name, Length
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: RegionRecorder-${{ matrix.name }}
           path: RegionRecorder-${{ matrix.name }}.zip
@@ -62,7 +66,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true

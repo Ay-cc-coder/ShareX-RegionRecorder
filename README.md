@@ -95,7 +95,7 @@ dotnet publish src/RegionRecorder/RegionRecorder.csproj -c Release -r win-x64 \
   -o publish/win-x64
 ```
 
-CI（`.github/workflows/build.yml`）会在 `windows-latest` 上为 `win-x64` / `win-arm64` 各产出一份 zip；推送 `v*` 标签时自动创建 Release 并附上这两个包。
+CI（`.github/workflows/build.yml`）会在 `windows-latest` 上为 `win-x64` / `win-arm64` 各产出一份 zip（内含 exe、`LICENSE.txt`、`NOTICE.md`）；推送 `v*` 标签时自动创建 Release 并附上这两个包。
 
 ## 目录结构
 
@@ -121,6 +121,7 @@ tools/make-icon.py               生成应用图标
 - 快捷键固定为 `Ctrl+Shift+R`，暂不支持自定义。
 - 不监听分辨率/DPI 变化：录制过程中拖动窗口或改变显示器缩放不在支持范围内。
 - 受 DRM 保护的窗口（如部分播放器、Netflix）无法被捕获，这是系统限制。
+- 可执行文件未做代码签名，首次运行可能出现 SmartScreen 提示（「更多信息」→「仍要运行」）。
 
 ## 许可
 
