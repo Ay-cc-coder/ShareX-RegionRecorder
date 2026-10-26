@@ -82,6 +82,12 @@ internal sealed class RecordingBar : Form
         NativeMethods.ExcludeFromCapture(Handle);
     }
 
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        NativeMethods.ExcludeFromCapture(Handle);
+    }
+
     protected override void OnPaint(PaintEventArgs e)
     {
         base.OnPaint(e);

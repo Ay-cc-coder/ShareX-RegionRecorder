@@ -8,6 +8,9 @@ internal sealed class HotKeyWindow : NativeWindow, IDisposable
 
     public event Action? StartRegionRequested;
 
+    /// <summary>另一个实例启动时发出，避免录制中误触。</summary>
+    public event Action? SecondInstanceRequested;
+
     public HotKeyWindow()
     {
         // 普通（不可见）顶层窗口，才能收到 HWND_BROADCAST。
@@ -34,7 +37,7 @@ internal sealed class HotKeyWindow : NativeWindow, IDisposable
 
         if (m.Msg == NativeMethods.WM_START_REGION_REQUEST)
         {
-            StartRegionRequested?.Invoke();
+            SecondInstanceRequested?.Invoke();
             return;
         }
 

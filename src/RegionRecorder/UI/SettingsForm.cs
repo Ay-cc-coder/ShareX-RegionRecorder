@@ -37,6 +37,13 @@ internal sealed class SettingsForm : Form
         LoadValues();
     }
 
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        Activate();
+        BringToFront();
+    }
+
     private void BuildLayout()
     {
         Label title = new()

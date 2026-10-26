@@ -28,6 +28,7 @@ internal sealed class TrayApp : ApplicationContext
 
         hotKeyWindow = new HotKeyWindow();
         hotKeyWindow.StartRegionRequested += OnStartRequested;
+        hotKeyWindow.SecondInstanceRequested += OnSecondInstance;
 
         recordItem = new ToolStripMenuItem("录制区域") { ShortcutKeyDisplayString = "Ctrl+Shift+R" };
         recordItem.Click += async (_, _) => await SafeToggleAsync();
@@ -36,7 +37,7 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(recordItem);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(CreateItem("设置…", (_, _) => ShowSettings()));
-        menu.Items.Add(CreateItem("打开保存位置", (_, _) => OpenFolder(settings.OutputFolder)));
+        menu.Items.Add(CreateItem("打开保存位置", (_, _) => OpenOutputFolder()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(CreateItem("关于", (_, _) => ShowAbout()));
         menu.Items.Add(CreateItem("退出", (_, _) => ExitApp()));
@@ -76,6 +77,13 @@ internal sealed class TrayApp : ApplicationContext
     }
 
     private void OnStartRequested() => _ = SafeToggleAsync();
+
+    private void OnSecondInstance()
+    {
+        // 已经在录制时忽略重复启动，避免误停当前录制。
+        if (session != null) return;
+        _ = SafeToggleAsync();
+    }
 
     private async Task SafeToggleAsync()
     {
@@ -178,12 +186,26 @@ internal sealed class TrayApp : ApplicationContext
             return;
         }
 
-        session = candidate;
-        bar = new RecordingBar(candidate);
-        bar.StopRequested += async (_, _) => await StopRecordingAsync();
-        bar.Show();
-        bar.PlaceNear(evenRegion);
+        RecordingBar controlBar = new(candidate);
+        controlBar.StopRequested += async (_, _) => await StopRecordingAsync();
 
+        try
+        {
+            controlBar.Show();
+            controlBar.PlaceNear(evenRegion);
+        }
+        catch (Exception ex)
+        {
+            // 控制条起不来就放弃本次录制，避免出现无法停止的会话。
+            controlBar.Dispose();
+            candidate.Abort();
+            candidate.Dispose();
+            ShowError("无法显示录制控制条", ex);
+            return;
+        }
+
+        session = candidate;
+        bar = controlBar;
         UpdateState();
     }
 

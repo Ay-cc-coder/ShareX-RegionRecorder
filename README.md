@@ -1,5 +1,7 @@
 # ShareX 区域录屏（ShareX Region Recorder）
 
+<img src="src/RegionRecorder/Assets/App.png" width="88" alt="应用图标">
+
 [![build](https://github.com/Ay-cc-coder/ShareX-RegionRecorder/actions/workflows/build.yml/badge.svg)](https://github.com/Ay-cc-coder/ShareX-RegionRecorder/actions/workflows/build.yml)
 
 从 [ShareX](https://github.com/ShareX/ShareX) 裁剪出来的**单一用途**程序：只做「框选一块屏幕区域 → 录制成 MP4」。
@@ -66,9 +68,9 @@
 
 裁剪方式：
 
-- **保留** `ShareX.ScreenRecordingLib`（约 4.5k 行）：`Windows.Graphics.Capture` 采集、D3D11 处理、Media Foundation H.264/AAC 封装、WASAPI 环回与混音、硬件编码器探测。
+- **保留** `ShareX.ScreenRecordingLib`（约 3.4k 行）：`Windows.Graphics.Capture` 采集、D3D11 处理、Media Foundation H.264/AAC 封装、WASAPI 环回与混音、硬件编码器探测。
 - **删除** 截图/标注/图像编辑/上传/历史/工具/本地化/打包等全部工程。
-- **重写** 界面层：原来的 Avalonia + WinForms 混合外壳换成约 1.5k 行的极简 WinForms 托盘程序，自行实现框选、倒计时、录制条和设置。
+- **重写** 界面层：原来的 Avalonia + WinForms 混合外壳换成约 1.7k 行的极简 WinForms 托盘程序，自行实现框选、倒计时、录制条和设置。
 - **移除** GIF 编码路径（连带去掉 SkiaSharp 依赖）和 FFmpeg 录制路径。
 
 ## 构建
