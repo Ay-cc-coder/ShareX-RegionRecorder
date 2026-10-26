@@ -45,7 +45,6 @@ internal sealed class AppSettings
         FramesPerSecond = Math.Clamp(FramesPerSecond, 5, 120);
         CountdownSeconds = Math.Clamp(CountdownSeconds, 0, 10);
         if (string.IsNullOrWhiteSpace(MicrophoneDeviceId)) MicrophoneDeviceId = null;
-        if (!CaptureMicrophone) MicrophoneDeviceId ??= null;
     }
 
     public AppSettings Clone() => (AppSettings)MemberwiseClone();
