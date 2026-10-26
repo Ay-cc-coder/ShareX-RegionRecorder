@@ -9,6 +9,17 @@
 
 > 非官方衍生项目，与 ShareX 团队无关。按 GPLv3 分发，详见 [LICENSE.txt](LICENSE.txt) 与 [NOTICE.md](NOTICE.md)。
 
+## 下载
+
+到 [Releases](https://github.com/Ay-cc-coder/ShareX-RegionRecorder/releases/latest) 下载对应架构的 zip：
+
+| 包 | 适用 |
+| --- | --- |
+| `RegionRecorder-win-x64.zip` | Intel / AMD 处理器 |
+| `RegionRecorder-win-arm64.zip` | 骁龙 X 等 ARM64 设备 |
+
+解压后直接双击 `RegionRecorder.exe`，**不需要安装 .NET 运行时**。首次运行若出现 SmartScreen 提示，点「更多信息 → 仍要运行」。
+
 ## 它现在能做什么
 
 - **托盘常驻**：启动后只有一个托盘图标，不弹主窗口。
