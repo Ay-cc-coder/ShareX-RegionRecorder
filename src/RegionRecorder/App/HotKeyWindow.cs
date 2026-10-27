@@ -27,6 +27,11 @@ internal sealed class HotKeyWindow : NativeWindow, IDisposable
     public bool TryRegister(uint modifiers, uint virtualKey) =>
         NativeMethods.RegisterHotKey(Handle, HotKeyId, modifiers, virtualKey);
 
+    public void Unregister()
+    {
+        if (Handle != IntPtr.Zero) NativeMethods.UnregisterHotKey(Handle, HotKeyId);
+    }
+
     protected override void WndProc(ref Message m)
     {
         if (m.Msg == NativeMethods.WM_HOTKEY && m.WParam.ToInt32() == HotKeyId)
@@ -48,7 +53,7 @@ internal sealed class HotKeyWindow : NativeWindow, IDisposable
     {
         if (disposed) return;
         disposed = true;
-        NativeMethods.UnregisterHotKey(Handle, HotKeyId);
+        Unregister();
         DestroyHandle();
     }
 }

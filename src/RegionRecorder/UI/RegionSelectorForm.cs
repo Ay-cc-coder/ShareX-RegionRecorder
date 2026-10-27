@@ -211,10 +211,12 @@ internal sealed class RegionSelectorForm : Form
         base.OnMouseUp(e);
         if (!dragging || e.Button != MouseButtons.Left) return;
 
-        dragging = false;
         dragCurrent = e.Location;
 
+        // 必须在 dragging 仍为 true 时取选区，否则 SelectionRectangle 恒为空。
         Rectangle selection = SelectionRectangle;
+        dragging = false;
+
         if (selection.Width >= 8 && selection.Height >= 8)
         {
             result = new Rectangle(
@@ -226,6 +228,7 @@ internal sealed class RegionSelectorForm : Form
         }
         else
         {
+            dragStart = dragCurrent = Point.Empty;
             Invalidate();
         }
     }

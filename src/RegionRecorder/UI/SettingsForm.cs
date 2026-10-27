@@ -2,10 +2,11 @@ using ShareX.ScreenRecordingLib;
 
 namespace RegionRecorder;
 
-/// <summary>设置窗口：保存位置、帧率、鼠标指针、系统声音、麦克风、倒计时。</summary>
+/// <summary>设置窗口：保存位置、帧率、鼠标指针、系统声音、麦克风、倒计时、快捷键。</summary>
 internal sealed class SettingsForm : Form
 {
     private readonly AppSettings settings;
+    private readonly Func<HotkeyDefinition, bool> tryApplyHotkey;
 
     private readonly TextBox folderBox = new();
     private readonly ComboBox fpsBox = new();
@@ -14,12 +15,14 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox microphoneBox = new() { Text = "启用" };
     private readonly ComboBox microphoneList = new();
     private readonly NumericUpDown countdownBox = new();
+    private readonly HotkeyBox hotkeyBox = new();
 
     private readonly List<AudioCaptureDevice> microphones = new();
 
-    public SettingsForm(AppSettings settings)
+    public SettingsForm(AppSettings settings, Func<HotkeyDefinition, bool> tryApplyHotkey)
     {
         this.settings = settings;
+        this.tryApplyHotkey = tryApplyHotkey;
 
         Text = "设置 · ShareX 区域录屏";
         FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -29,7 +32,7 @@ internal sealed class SettingsForm : Form
         StartPosition = FormStartPosition.CenterScreen;
         AutoScaleMode = AutoScaleMode.Font;
         AutoScaleDimensions = new SizeF(96f, 96f);
-        ClientSize = new Size(604, 496);
+        ClientSize = new Size(604, 556);
         BackColor = Color.White;
         Font = Theme.Font(9.5f);
 
@@ -110,7 +113,7 @@ internal sealed class SettingsForm : Form
         microphoneBox.CheckedChanged += (_, _) => UpdateMicrophoneState();
 
         microphoneList.DropDownStyle = ComboBoxStyle.DropDownList;
-        microphoneList.Width = 240;
+        microphoneList.Width = 232;
 
         Button refresh = new()
         {
@@ -134,17 +137,27 @@ internal sealed class SettingsForm : Form
         countdownRow.Controls.Add(countdownBox);
         countdownRow.Controls.Add(new Label { Text = "秒倒计时（0 = 立即开始）", AutoSize = true, Margin = new Padding(8, 6, 0, 0) });
 
+        FlowLayoutPanel hotkeyRow = new() { Dock = DockStyle.Fill, Margin = new Padding(0) };
+        hotkeyRow.Controls.Add(hotkeyBox);
+        hotkeyRow.Controls.Add(new Label
+        {
+            Text = "点击输入框后按下组合键（需含 Ctrl / Alt / Win）",
+            AutoSize = true,
+            ForeColor = Theme.PageMuted,
+            Margin = new Padding(8, 7, 0, 0)
+        });
+
         TableLayoutPanel body = new()
         {
             Location = new Point(28, 96),
-            Size = new Size(548, 286),
+            Size = new Size(548, 322),
             ColumnCount = 2,
-            RowCount = 6,
+            RowCount = 7,
             BackColor = Color.White
         };
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 96f));
         body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100f));
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < 7; i++)
         {
             body.RowStyles.Add(new RowStyle(SizeType.Absolute, 46f));
         }
@@ -155,13 +168,14 @@ internal sealed class SettingsForm : Form
         AddRow(body, 3, "系统声音", systemAudioBox);
         AddRow(body, 4, "麦克风", microphoneRow);
         AddRow(body, 5, "开始前", countdownRow);
+        AddRow(body, 6, "快捷键", hotkeyRow);
 
-        Label shortcut = new()
+        Label hint = new()
         {
-            Text = "快捷键 Ctrl + Shift + R：开始框选；录制中再按一次即停止。",
+            Text = "快捷键在录制中再按一次即停止；启动时若被占用会提示并回退。",
             ForeColor = Theme.PageMuted,
             AutoSize = true,
-            Location = new Point(28, 396)
+            Location = new Point(28, 430)
         };
 
         Button save = new()
@@ -187,7 +201,7 @@ internal sealed class SettingsForm : Form
         save.Location = new Point(ClientSize.Width - 28 - save.Width - 8 - cancel.Width, ClientSize.Height - 28 - save.Height);
         cancel.Location = new Point(ClientSize.Width - 28 - cancel.Width, ClientSize.Height - 28 - save.Height);
 
-        Controls.AddRange(new Control[] { title, subtitle, body, shortcut, save, cancel });
+        Controls.AddRange(new Control[] { title, subtitle, body, hint, save, cancel });
         AcceptButton = save;
         CancelButton = cancel;
     }
@@ -224,6 +238,7 @@ internal sealed class SettingsForm : Form
         systemAudioBox.Checked = settings.CaptureSystemAudio;
         microphoneBox.Checked = settings.CaptureMicrophone;
         countdownBox.Value = Math.Clamp(settings.CountdownSeconds, 0, 10);
+        hotkeyBox.Hotkey = settings.HotkeyValue;
 
         LoadMicrophones();
         UpdateMicrophoneState();
@@ -297,6 +312,22 @@ internal sealed class SettingsForm : Form
             return;
         }
 
+        HotkeyDefinition hotkey = hotkeyBox.Hotkey;
+        if (!hotkey.IsValid)
+        {
+            ShowWarning("快捷键需要包含 Ctrl / Alt / Win 之一。");
+            return;
+        }
+
+        string previousHotkey = settings.Hotkey;
+        bool hotkeyChanged = hotkey != settings.HotkeyValue;
+
+        if (hotkeyChanged && !tryApplyHotkey(hotkey))
+        {
+            ShowWarning("这个快捷键已被其他程序占用，请换一个组合。");
+            return;
+        }
+
         settings.OutputFolder = folder;
         settings.FramesPerSecond = fpsBox.SelectedItem is int fps ? fps : 30;
         settings.IncludeCursor = cursorBox.Checked;
@@ -309,14 +340,24 @@ internal sealed class SettingsForm : Form
             : null;
 
         settings.CountdownSeconds = (int)countdownBox.Value;
+        settings.Hotkey = hotkey.Display;
         settings.Normalize();
 
         try
         {
             SettingsStore.Save(settings);
+            Diagnostics.Log("设置已保存：hotkey=" + settings.Hotkey +
+                " fps=" + settings.FramesPerSecond +
+                " cursor=" + settings.IncludeCursor +
+                " sysAudio=" + settings.CaptureSystemAudio +
+                " mic=" + settings.CaptureMicrophone +
+                " countdown=" + settings.CountdownSeconds);
         }
         catch (Exception ex)
         {
+            // 保存失败就回滚快捷键注册，保持内存、磁盘、系统热键三者一致。
+            settings.Hotkey = previousHotkey;
+            tryApplyHotkey(settings.HotkeyValue);
             ShowWarning($"保存设置失败：\n{ex.Message}");
             return;
         }

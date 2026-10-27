@@ -49,4 +49,6 @@ internal static class SettingsStore
     }
 
     public static string SettingsPath => FilePath;
+
+    public static string DataFolder => Folder;
 }

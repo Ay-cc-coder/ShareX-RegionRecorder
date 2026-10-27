@@ -18,6 +18,8 @@ internal static class Program
             return;
         }
 
+        Diagnostics.Log($"应用启动 v{Application.ProductVersion}（{Environment.OSVersion.VersionString}）");
+
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);

@@ -30,7 +30,7 @@ internal sealed class TrayApp : ApplicationContext
         hotKeyWindow.StartRegionRequested += OnStartRequested;
         hotKeyWindow.SecondInstanceRequested += OnSecondInstance;
 
-        recordItem = new ToolStripMenuItem("录制区域") { ShortcutKeyDisplayString = "Ctrl+Shift+R" };
+        recordItem = new ToolStripMenuItem("录制区域");
         recordItem.Click += async (_, _) => await SafeToggleAsync();
 
         ContextMenuStrip menu = new() { ShowImageMargin = false, Font = Theme.Font(9.5f) };
@@ -40,6 +40,7 @@ internal sealed class TrayApp : ApplicationContext
         menu.Items.Add(CreateItem("打开保存位置", (_, _) => OpenOutputFolder()));
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(CreateItem("关于", (_, _) => ShowAbout()));
+        menu.Items.Add(CreateItem("打开日志", (_, _) => OpenLog()));
         menu.Items.Add(CreateItem("退出", (_, _) => ExitApp()));
 
         tray = new NotifyIcon
@@ -52,11 +53,21 @@ internal sealed class TrayApp : ApplicationContext
         tray.DoubleClick += async (_, _) => await SafeToggleAsync();
         tray.BalloonTipClicked += (_, _) => OpenLastOutput();
 
-        if (!hotKeyWindow.TryRegister(NativeMethods.MOD_CONTROL | NativeMethods.MOD_SHIFT, (uint)Keys.R))
+        HotkeyDefinition hotkey = settings.HotkeyValue;
+        if (!hotKeyWindow.TryRegister(hotkey.Modifiers, hotkey.Key))
         {
-            tray.ShowBalloonTip(4000, AppTitle,
-                "全局快捷键 Ctrl+Shift+R 被其他程序占用，请用托盘菜单开始录制。",
-                ToolTipIcon.Warning);
+            Diagnostics.Log($"快捷键 {hotkey.Display} 注册失败，回退到默认 {HotkeyDefinition.DefaultText}");
+            hotkey = HotkeyDefinition.Default;
+            if (!hotKeyWindow.TryRegister(hotkey.Modifiers, hotkey.Key))
+            {
+                tray.ShowBalloonTip(5000, AppTitle,
+                    $"快捷键 {hotkey.Display} 和默认快捷键都被占用，请用托盘菜单开始录制，并在设置里换一个组合。",
+                    ToolTipIcon.Warning);
+            }
+        }
+        else
+        {
+            Diagnostics.Log($"快捷键已注册：{hotkey.Display}");
         }
 
         UpdateState();
@@ -64,7 +75,7 @@ internal sealed class TrayApp : ApplicationContext
         if (firstRun)
         {
             tray.ShowBalloonTip(6000, AppTitle,
-                "已启动：按 Ctrl+Shift+R 或右键托盘图标开始框选录制。",
+                $"已启动：按 {settings.HotkeyValue.Display} 或右键托盘图标开始框选录制。",
                 ToolTipIcon.Info);
         }
     }
@@ -126,12 +137,22 @@ internal sealed class TrayApp : ApplicationContext
             }
 
             region = Rectangle.Intersect(region, virtualScreen);
-            if (region.Width < 8 || region.Height < 8) return;
+            if (region.Width < 8 || region.Height < 8)
+            {
+                Diagnostics.Log($"框选结果过小，已忽略：{region}");
+                return;
+            }
+
+            Diagnostics.Log($"框选完成：{region}（虚拟桌面 {virtualScreen}）");
 
             if (settings.CountdownSeconds > 0)
             {
                 using CountdownForm countdown = new(region, settings.CountdownSeconds, virtualScreen, screenshot);
-                if (!await countdown.RunAsync()) return;
+                if (!await countdown.RunAsync())
+                {
+                    Diagnostics.Log("倒计时被取消");
+                    return;
+                }
             }
 
             await StartRecordingAsync(region);
@@ -176,10 +197,16 @@ internal sealed class TrayApp : ApplicationContext
         RecordingSession candidate = new(options);
         try
         {
+            Diagnostics.Log($"开始录制：{path} region={evenRegion} fps={settings.FramesPerSecond} bitrate={bitrate} " +
+                $"cursor={settings.IncludeCursor} sysAudio={systemAudio} mic={microphone}");
+
             await candidate.StartAsync();
+
+            Diagnostics.Log($"录制已启动，编码器：{candidate.Encoder?.Name ?? "未知"}");
         }
         catch (Exception ex)
         {
+            Diagnostics.LogException("录制启动", ex);
             candidate.Dispose();
             try { File.Delete(path); } catch (IOException) { }
             ShowError("录制启动失败", ex);
@@ -242,11 +269,15 @@ internal sealed class TrayApp : ApplicationContext
 
         if (failure != null)
         {
+            Diagnostics.LogException("录制停止", failure);
             ShowError("录制未完成", failure);
             return;
         }
 
         if (result is null) return;
+
+        Diagnostics.Log($"录制完成：{result.OutputPath} 时长={result.Duration} 帧={result.VideoFrames} " +
+            $"丢帧={result.DroppedVideoFrames} 编码器={result.Encoder.Name}");
 
         lastOutput = result.OutputPath;
         tray.ShowBalloonTip(5000, "录制完成",
@@ -278,17 +309,34 @@ internal sealed class TrayApp : ApplicationContext
     {
         bool recording = session != null;
         recordItem.Text = recording ? "停止录制" : "录制区域";
-        recordItem.ShortcutKeyDisplayString = "Ctrl+Shift+R";
+        recordItem.ShortcutKeyDisplayString = settings.HotkeyValue.Display;
         tray.Text = recording ? $"{AppTitle} · 正在录制" : AppTitle;
     }
 
     private void ShowSettings()
     {
-        using SettingsForm form = new(settings);
+        using SettingsForm form = new(settings, TryApplyHotkey);
         if (form.ShowDialog() == DialogResult.OK)
         {
             UpdateState();
         }
+    }
+
+    /// <summary>先试注册新快捷键，失败则恢复旧组合，保证设置与系统状态一致。</summary>
+    private bool TryApplyHotkey(HotkeyDefinition hotkey)
+    {
+        HotkeyDefinition previous = settings.HotkeyValue;
+
+        hotKeyWindow.Unregister();
+        if (hotKeyWindow.TryRegister(hotkey.Modifiers, hotkey.Key))
+        {
+            Diagnostics.Log($"快捷键已切换：{previous.Display} -> {hotkey.Display}");
+            return true;
+        }
+
+        hotKeyWindow.TryRegister(previous.Modifiers, previous.Key);
+        Diagnostics.Log($"快捷键 {hotkey.Display} 注册失败，保留 {previous.Display}");
+        return false;
     }
 
     private void ShowAbout()
@@ -298,6 +346,7 @@ internal sealed class TrayApp : ApplicationContext
             $"ShareX 区域录屏 {version}\n\n" +
             "只保留 ShareX 的「区域屏幕录制」：框选一块屏幕区域，使用 Windows Graphics Capture\n" +
             "与 Media Foundation（GPU 硬编码 H.264/AAC）直接输出 MP4。\n\n" +
+            "可自定义全局快捷键（设置 → 快捷键），录制中再按一次即停止。\n\n" +
             "本工程衍生自 ShareX（GPLv3），并做了大幅裁剪：\n" +
             "  · 移除截图、标注、图像编辑器、OCR\n" +
             "  · 移除所有上传、分享、历史记录、热键编辑与工具集\n" +
@@ -329,6 +378,20 @@ internal sealed class TrayApp : ApplicationContext
         else OpenOutputFolder();
     }
 
+    private void OpenLog()
+    {
+        try
+        {
+            Diagnostics.Log("用户打开日志文件");
+            if (!File.Exists(Diagnostics.LogPath)) Diagnostics.Log("日志已创建");
+            StartShell(Diagnostics.LogPath);
+        }
+        catch (Exception ex)
+        {
+            ShowError("无法打开日志", ex);
+        }
+    }
+
     private static void StartShell(string path)
     {
         try
@@ -343,6 +406,7 @@ internal sealed class TrayApp : ApplicationContext
 
     private void ExitApp()
     {
+        Diagnostics.Log("应用退出");
         try
         {
             if (session != null)
@@ -365,6 +429,8 @@ internal sealed class TrayApp : ApplicationContext
 
     private static void ShowError(string title, Exception exception)
     {
+        Diagnostics.LogException(title, exception);
+
         Exception root = exception;
         while (root.InnerException != null) root = root.InnerException;
 

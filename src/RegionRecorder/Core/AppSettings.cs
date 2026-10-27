@@ -25,6 +25,13 @@ internal sealed class AppSettings
     /// <summary>开始录制前的倒计时秒数，0 表示立即开始。</summary>
     public int CountdownSeconds { get; set; } = 3;
 
+    /// <summary>全局快捷键，文本形式，如 "Ctrl + Shift + R"。</summary>
+    public string Hotkey { get; set; } = HotkeyDefinition.DefaultText;
+
+    [JsonIgnore]
+    public HotkeyDefinition HotkeyValue =>
+        HotkeyDefinition.TryParse(Hotkey, out HotkeyDefinition hotkey) ? hotkey : HotkeyDefinition.Default;
+
     [JsonIgnore]
     public static string DefaultOutputFolder { get; } = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyVideos), "ShareX 区域录屏");
@@ -45,6 +52,9 @@ internal sealed class AppSettings
         FramesPerSecond = Math.Clamp(FramesPerSecond, 5, 120);
         CountdownSeconds = Math.Clamp(CountdownSeconds, 0, 10);
         if (string.IsNullOrWhiteSpace(MicrophoneDeviceId)) MicrophoneDeviceId = null;
+
+        if (HotkeyDefinition.TryParse(Hotkey, out HotkeyDefinition hotkey)) Hotkey = hotkey.Display;
+        else Hotkey = HotkeyDefinition.DefaultText;
     }
 
     public AppSettings Clone() => (AppSettings)MemberwiseClone();
