@@ -15,6 +15,9 @@ internal sealed class RecordingBar : Form
 
     public event EventHandler? StopRequested;
 
+    /// <summary>暂停状态变化，用于让选区边框同步换色。</summary>
+    public event Action<bool>? PauseChanged;
+
     public RecordingBar(RecordingSession session)
     {
         this.session = session;
@@ -102,18 +105,56 @@ internal sealed class RecordingBar : Form
         e.Graphics.FillEllipse(dot, 16, 27, 12, 12);
     }
 
-    /// <summary>把控制条贴在录制区域的右上角（物理像素坐标）。</summary>
-    public void PlaceNear(Rectangle region)
+    /// <summary>
+    /// 优先把控制条放在选区外面（上 → 下 → 右 → 左），避免挡住正在录的内容；
+    /// 只有屏幕实在放不下时才压进选区。坐标为物理像素。
+    /// </summary>
+    public void PlaceNear(Rectangle region, Rectangle virtualScreen)
     {
         Size size = Size;
-        const int gap = 12;
+        const int gap = 10;
+        const int edge = 4;
 
-        int x = region.Right - size.Width - gap;
-        int y = region.Top + gap;
+        int maxX = virtualScreen.Right - size.Width - edge;
+        int maxY = virtualScreen.Bottom - size.Height - edge;
+        int minX = virtualScreen.Left + edge;
+        int minY = virtualScreen.Top + edge;
 
-        if (y + size.Height > region.Bottom) y = region.Bottom - size.Height - gap;
-        if (y < region.Top) y = region.Top + gap;
-        if (x < region.Left) x = region.Left + gap;
+        int x = Math.Clamp(region.Right - size.Width, minX, Math.Max(minX, maxX));
+        int above = region.Top - gap - size.Height;
+        int below = region.Bottom + gap;
+
+        int y;
+        if (above >= minY)
+        {
+            y = above;
+        }
+        else if (below + size.Height <= virtualScreen.Bottom - edge)
+        {
+            y = below;
+        }
+        else
+        {
+            int right = region.Right + gap;
+            int left = region.Left - gap - size.Width;
+
+            if (right + size.Width <= virtualScreen.Right - edge)
+            {
+                x = right;
+                y = Math.Clamp(region.Top, minY, Math.Max(minY, maxY));
+            }
+            else if (left >= minX)
+            {
+                x = left;
+                y = Math.Clamp(region.Top, minY, Math.Max(minY, maxY));
+            }
+            else
+            {
+                // 屏幕边缘的小选区：只能压进选区，此时靠边框识别录制范围。
+                x = Math.Clamp(region.Left + gap, minX, Math.Max(minX, maxX));
+                y = Math.Clamp(region.Top + gap, minY, Math.Max(minY, maxY));
+            }
+        }
 
         NativeMethods.SetWindowPos(Handle, NativeMethods.HWND_TOPMOST, x, y, 0, 0,
             NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE);
@@ -148,6 +189,7 @@ internal sealed class RecordingBar : Form
         }
 
         UpdateTimer();
+        PauseChanged?.Invoke(session.IsPaused);
     }
 
     private void UpdateTimer()

@@ -17,6 +17,7 @@ internal sealed class TrayApp : ApplicationContext
     private AppSettings settings;
     private RecordingSession? session;
     private RecordingBar? bar;
+    private RecordingBorder? border;
     private string? lastOutput;
     private bool busy;
 
@@ -216,13 +217,15 @@ internal sealed class TrayApp : ApplicationContext
             return;
         }
 
+        Rectangle virtualScreen = NativeMethods.GetVirtualScreenBounds();
+
         RecordingBar controlBar = new(candidate);
         controlBar.StopRequested += async (_, _) => await StopRecordingAsync();
 
         try
         {
             controlBar.Show();
-            controlBar.PlaceNear(evenRegion);
+            controlBar.PlaceNear(evenRegion, virtualScreen);
         }
         catch (Exception ex)
         {
@@ -236,6 +239,18 @@ internal sealed class TrayApp : ApplicationContext
 
         session = candidate;
         bar = controlBar;
+
+        try
+        {
+            border = new RecordingBorder(evenRegion, virtualScreen);
+            controlBar.PauseChanged += paused => border?.SetPaused(paused);
+        }
+        catch (Exception ex)
+        {
+            // 边框只是装饰，失败不影响录制。
+            Diagnostics.LogException("创建选区边框", ex);
+        }
+
         UpdateState();
     }
 
@@ -261,6 +276,10 @@ internal sealed class TrayApp : ApplicationContext
         }
         finally
         {
+            RecordingBorder? closingBorder = border;
+            border = null;
+            closingBorder?.Dispose();
+
             RecordingBar? closingBar = bar;
             bar = null;
             closingBar?.Close();
@@ -424,6 +443,7 @@ internal sealed class TrayApp : ApplicationContext
             // 退出时不再打扰用户。
         }
 
+        border?.Dispose();
         bar?.Close();
         hotKeyWindow.Dispose();
         tray.Visible = false;
