@@ -58,6 +58,9 @@ internal sealed class TrayApp : ApplicationContext
         {
             Diagnostics.Log($"快捷键 {hotkey.Display} 注册失败，回退到默认 {HotkeyDefinition.DefaultText}");
             hotkey = HotkeyDefinition.Default;
+            settings.Hotkey = hotkey.Display;
+            try { SettingsStore.Save(settings); } catch (Exception) { }
+
             if (!hotKeyWindow.TryRegister(hotkey.Modifiers, hotkey.Key))
             {
                 tray.ShowBalloonTip(5000, AppTitle,

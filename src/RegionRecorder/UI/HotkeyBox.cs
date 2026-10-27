@@ -31,7 +31,13 @@ internal sealed class HotkeyBox : TextBox
         }
     }
 
-    protected override bool IsInputKey(Keys keyData) => true;
+    protected override bool IsInputKey(Keys keyData)
+    {
+        // Tab / Esc 交给对话框处理，其余按键都用于录入组合键。
+        Keys key = keyData & Keys.KeyCode;
+        if (key is Keys.Tab or Keys.Escape) return false;
+        return true;
+    }
 
     protected override bool ProcessDialogKey(Keys keyData)
     {
